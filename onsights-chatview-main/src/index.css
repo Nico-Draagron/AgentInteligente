@@ -1,0 +1,225 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ONSights Design System - Energy Data Platform */
+
+@layer base {
+  :root {
+    /* Core Energy Theme */
+    --background: 220 20% 97%;
+    --foreground: 220 20% 10%;
+
+    /* Energy Brand Colors */
+    --primary: 212 100% 45%; /* Deep Energy Blue */
+    --primary-foreground: 0 0% 100%;
+    --primary-glow: 212 100% 65%;
+
+    --secondary: 155 100% 35%; /* Clean Energy Green */
+    --secondary-foreground: 0 0% 100%;
+    --secondary-glow: 155 100% 50%;
+
+    /* Surface Colors */
+    --card: 0 0% 100%;
+    --card-foreground: 220 20% 10%;
+    --card-hover: 220 20% 98%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 20% 10%;
+
+    /* Interactive States */
+    --muted: 220 15% 95%;
+    --muted-foreground: 220 15% 45%;
+
+    --accent: 212 100% 97%;
+    --accent-foreground: 212 100% 25%;
+
+    /* Status & Feedback */
+    --success: 155 100% 35%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 100% 50%;
+    --warning-foreground: 0 0% 100%;
+
+    --destructive: 0 85% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* Borders & Inputs */
+    --border: 220 15% 88%;
+    --input: 220 15% 92%;
+    --ring: 212 100% 45%;
+
+    /* Chat & Conversation */
+    --chat-user: 212 100% 45%;
+    --chat-user-foreground: 0 0% 100%;
+    --chat-assistant: 220 15% 95%;
+    --chat-assistant-foreground: 220 20% 10%;
+
+    /* Data Visualization */
+    --chart-primary: 212 100% 45%;
+    --chart-secondary: 155 100% 35%;
+    --chart-tertiary: 38 100% 50%;
+    --chart-grid: 220 15% 88%;
+
+    /* Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(212 100% 45%) 0%, hsl(212 100% 65%) 100%);
+    --gradient-secondary: linear-gradient(135deg, hsl(155 100% 35%) 0%, hsl(155 100% 50%) 100%);
+    --gradient-surface: linear-gradient(180deg, hsl(220 20% 97%) 0%, hsl(220 15% 95%) 100%);
+
+    /* Shadows */
+    --shadow-sm: 0 2px 4px -1px hsl(220 20% 10% / 0.1);
+    --shadow-md: 0 4px 12px -2px hsl(220 20% 10% / 0.12);
+    --shadow-lg: 0 8px 24px -4px hsl(220 20% 10% / 0.15);
+    --shadow-glow: 0 0 20px hsl(212 100% 45% / 0.3);
+
+    /* Animation & Transitions */
+    --transition-fast: 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-smooth: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+    --radius: 0.75rem;
+
+    /* Sidebar (Dashboard) */
+    --sidebar-background: 220 25% 8%;
+    --sidebar-foreground: 220 15% 85%;
+    --sidebar-primary: 212 100% 45%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 220 20% 12%;
+    --sidebar-accent-foreground: 220 15% 85%;
+    --sidebar-border: 220 20% 15%;
+    --sidebar-ring: 212 100% 45%;
+  }
+
+  .dark {
+    /* Dark Theme for Energy Platform */
+    --background: 220 25% 6%;
+    --foreground: 220 15% 92%;
+
+    --primary: 212 100% 55%;
+    --primary-foreground: 220 25% 6%;
+    --primary-glow: 212 100% 70%;
+
+    --secondary: 155 100% 45%;
+    --secondary-foreground: 220 25% 6%;
+    --secondary-glow: 155 100% 60%;
+
+    --card: 220 25% 8%;
+    --card-foreground: 220 15% 92%;
+    --card-hover: 220 25% 10%;
+
+    --popover: 220 25% 8%;
+    --popover-foreground: 220 15% 92%;
+
+    --muted: 220 20% 12%;
+    --muted-foreground: 220 15% 65%;
+
+    --accent: 220 20% 12%;
+    --accent-foreground: 212 100% 65%;
+
+    --success: 155 100% 45%;
+    --success-foreground: 220 25% 6%;
+
+    --warning: 38 100% 55%;
+    --warning-foreground: 220 25% 6%;
+
+    --destructive: 0 85% 65%;
+    --destructive-foreground: 220 25% 6%;
+
+    --border: 220 20% 15%;
+    --input: 220 20% 12%;
+    --ring: 212 100% 55%;
+
+    --chat-user: 212 100% 55%;
+    --chat-user-foreground: 220 25% 6%;
+    --chat-assistant: 220 20% 12%;
+    --chat-assistant-foreground: 220 15% 92%;
+
+    --chart-primary: 212 100% 55%;
+    --chart-secondary: 155 100% 45%;
+    --chart-tertiary: 38 100% 55%;
+    --chart-grid: 220 20% 15%;
+
+    --gradient-primary: linear-gradient(135deg, hsl(212 100% 55%) 0%, hsl(212 100% 75%) 100%);
+    --gradient-secondary: linear-gradient(135deg, hsl(155 100% 45%) 0%, hsl(155 100% 60%) 100%);
+    --gradient-surface: linear-gradient(180deg, hsl(220 25% 6%) 0%, hsl(220 20% 8%) 100%);
+
+    --shadow-sm: 0 2px 4px -1px hsl(0 0% 0% / 0.3);
+    --shadow-md: 0 4px 12px -2px hsl(0 0% 0% / 0.4);
+    --shadow-lg: 0 8px 24px -4px hsl(0 0% 0% / 0.5);
+    --shadow-glow: 0 0 20px hsl(212 100% 55% / 0.4);
+
+    --sidebar-background: 220 30% 4%;
+    --sidebar-foreground: 220 15% 85%;
+    --sidebar-primary: 212 100% 55%;
+    --sidebar-primary-foreground: 220 30% 4%;
+    --sidebar-accent: 220 25% 8%;
+    --sidebar-accent-foreground: 220 15% 85%;
+    --sidebar-border: 220 25% 10%;
+    --sidebar-ring: 212 100% 55%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-gradient-to-br from-background to-muted text-foreground font-inter antialiased;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-muted;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-border rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-muted-foreground;
+  }
+}
+
+@layer components {
+  /* Chat Message Animations */
+  .message-enter {
+    animation: messageSlideIn 0.3s ease-out;
+  }
+
+  @keyframes messageSlideIn {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* Loading Animation */
+  .typing-indicator {
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+
+  /* Glow Effects */
+  .glow-primary {
+    box-shadow: var(--shadow-glow);
+  }
+
+  /* Grid Pattern */
+  .grid-pattern {
+    background-image: 
+      linear-gradient(hsl(var(--border)) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(var(--border)) 1px, transparent 1px);
+    background-size: 20px 20px;
+  }
+}

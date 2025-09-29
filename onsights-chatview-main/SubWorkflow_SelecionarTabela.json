@@ -1,0 +1,133 @@
+{
+  "name": "SubWorkflow_SelecionarTabela",
+  "nodes": [
+    {
+      "parameters": {
+        "operation": "select",
+        "schema": {
+          "__rl": true,
+          "value": "public",
+          "mode": "list",
+          "cachedResultName": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "consulta_tabelas",
+          "mode": "list",
+          "cachedResultName": "consulta_tabelas"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        576,
+        480
+      ],
+      "id": "fc0ce0f8-2e67-4410-9dcd-1199461a3a21",
+      "name": "Select rows from a table",
+      "credentials": {
+        "postgres": {
+          "id": "jo10MrnSzopIO5e8",
+          "name": "Postgres_DatathONS"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        848,
+        480
+      ],
+      "id": "6ebfccaa-36b3-40ff-8f40-d5cc4143d88e",
+      "name": "Aggregate"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "332784aa-04cd-473f-960f-4c4047c2ec09",
+              "name": "",
+              "value": "={{ $json.data }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1056,
+        480
+      ],
+      "id": "262e4be9-e604-43fa-ac45-e22916aa51d1",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "c055762a-8fe7-4141-a639-df2372f30060",
+      "typeVersion": 1.1,
+      "name": "When Executed by Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "position": [
+        304,
+        480
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Select rows from a table": {
+      "main": [
+        [
+          {
+            "node": "Aggregate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Select rows from a table",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "877a46da-6679-4eca-a156-9e7629284c19",
+  "meta": {
+    "instanceId": "c41a1a3c9ef6078f92aeb4d274a5d7dc119b59dc60953e96a1bf97279426206e"
+  },
+  "id": "atJu7pVGJ0rMNNU7",
+  "tags": []
+}

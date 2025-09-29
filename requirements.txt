@@ -1,0 +1,21 @@
+# ============================================================================
+# ARQUIVO 4: requirements.txt
+# ============================================================================
+
+requirements = '''
+# FastAPI Backend
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+pydantic==2.5.0
+redis==5.0.1
+pandas==2.1.3
+numpy==1.24.3
+httpx==0.25.1
+websockets==12.0
+
+# Streamlit Frontend
+streamlit==1.28.2
+plotly==5.18.0
+requests==2.31.0
+websocket-client==1.6.4
+'''

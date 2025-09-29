@@ -1,0 +1,70 @@
+# ============================================================================
+# ARQUIVO 6: Dockerfile.streamlit
+# ============================================================================
+
+dockerfile_streamlit = '''
+FROM python:3.10-slim
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY streamlit_app.py .
+
+CMD ["streamlit", "run", "streamlit_app.py", "--server.port=8501", "--server.address=0.0.0.0"]
+'''
+
+print("""
+============================================================================
+INSTRUÇÕES DE INSTALAÇÃO E EXECUÇÃO
+============================================================================
+
+1. CRIAR ESTRUTURA DE ARQUIVOS:
+   aide_n8n/
+   ├── backend_api.py       (Arquivo 1 acima)
+   ├── streamlit_app.py     (Arquivo 2 acima)
+   ├── docker-compose.yml   (Arquivo 3 acima)
+   ├── requirements.txt     (Arquivo 4 acima)
+   ├── Dockerfile.api       (Arquivo 5 acima)
+   └── Dockerfile.streamlit (Arquivo 6 acima)
+
+2. OPÇÃO A - EXECUTAR COM DOCKER (RECOMENDADO):
+   cd aide_n8n
+   docker-compose up
+
+3. OPÇÃO B - EXECUTAR LOCALMENTE:
+   # Terminal 1 - Redis
+   docker run -p 6379:6379 redis:7-alpine
+   
+   # Terminal 2 - FastAPI
+   pip install -r requirements.txt
+   uvicorn backend_api:app --reload --port 8000
+   
+   # Terminal 3 - Streamlit
+   streamlit run streamlit_app.py
+   
+   # Terminal 4 - n8n
+   docker run -p 5678:5678 n8nio/n8n
+
+4. ACESSAR:
+   - Streamlit: http://localhost:8501
+   - FastAPI Docs: http://localhost:8000/docs
+   - n8n: http://localhost:5678
+   - Redis: localhost:6379
+
+5. CONFIGURAR N8N:
+   a) Criar novo workflow
+   b) Adicionar node "Webhook"
+   c) URL: http://fastapi:8000/n8n/webhook/{workflow_name}
+   d) Método: POST
+   e) Adicionar nodes de processamento
+   f) Ativar workflow
+
+6. TESTAR INTEGRAÇÃO:
+   - No Streamlit, vá para aba "n8n Workflows"
+   - Clique em "Disparar Workflow"
+   - Verifique logs no n8n
+
+============================================================================
+""")
