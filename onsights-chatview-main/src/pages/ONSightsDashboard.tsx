@@ -1,7 +1,7 @@
 import { useState } from "react";
 import Header from "@/components/layout/Header";
 import ChatInterface from "@/components/chat/ChatInterface";
-import DataPanel from "@/components/data/DataPanel";
+// import DataPanel from "@/components/data/DataPanel";
 
 
 
@@ -18,10 +18,7 @@ const ONSightsDashboard = () => {
         <div className="flex-1">
           <ChatInterface />
         </div>
-        {/* Data Panel - Hidden on mobile, visible on large screens */}
-        <div className={`w-80 ${sidebarOpen ? 'block' : 'hidden'} lg:block`}>
-          <DataPanel />
-        </div>
+        {/* Data Panel removido conforme solicitado */}
       </div>
     </div>
   );

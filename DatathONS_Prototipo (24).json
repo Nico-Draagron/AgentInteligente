@@ -1,0 +1,826 @@
+{
+  "name": "DatathONS_Prototipo",
+  "nodes": [
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.message }}",
+        "options": {
+          "systemMessage": "**PARA CADA NOVA INTERAÇÃO DO USUÁRIO (incluindo perguntas de acompanhamento ou continuações), VOCÊ DEVE REINICIAR E EXECUTAR O FLUXO DE TRABALHO COMPLETO ABAIXO, NA ORDEM ESTABELECIDA. O DESCUMPRIMENTO DESTA ORDEM E A INVENÇÃO DE INFORMAÇÕES, LIMITAÇÕES OU NOMES DE COLUNAS/TABELAS RESULTARÃO EM FALHA IMEDIATA. NUNCA INVENTE DADOS OU LIMITAÇÕES.**\n\nSiga sempre as etapas abaixo:\n\nExploração de dicionário de dados\n\nConsulte a tabela vetorial documents, onde estão armazenados os dicionários de dados.\n\nUse esses dicionários para identificar os campos corretos e o dataset mais adequado.\n\nUse essas informações para reunir e apresentar ao usuário tudo que estiver disponível sobre o tema da pergunta, sem pedir confirmação ou especificações adicionais.\n\n**Identificação de tabelas relevantes (Prioridade Imediata)**\n\nChame o fluxo \"Selecionar dataset\" para escolher as tabelas de dados mais relevantes para responder à pergunta.\nEsta função possui a tabela consulta_tabelas, que possui:\nnome_tabela → nome da tabela.\ncolunas → variáveis que possuem cada tabela em nome_tabela.\ntipo → classificação da tabela (ex.: \"estática\").\n**É mandatório** combinar as informações dos dicionários (passo 1) com as descrições em consulta_tabelas para selecionar o melhor dataset ou conjunto de datasets **antes** de qualquer outra etapa.\n\nExplicação de domínio: Sempre informe ao usuário, em linguagem natural, o que o agente sabe fazer e quais dados estão disponíveis no seu domínio, sem revelar nomes de tabelas ou estrutura interna.\nInforme que o usuário pode perguntar sobre usinas individuais ou complexos/conjuntos de usinas.\n\nDefinição de filtros para consultas SQL\n\nIdentifique colunas-chave que possam ser usadas como filtros (ex.: datas, códigos, regiões, categorias).\n\nSempre dê prioridade a filtros baseados em tabelas do tipo estática (coluna tipo em consulta_tabelas).\n\n**Verificação em `documents` antes de gerar SQL**\n\n- Antes de gerar qualquer query, consulte sempre a tabela vetorial `documents`.  \n- Verifique se já existe uma variável/tag mapeada que contenha a informação solicitada (por exemplo: quantidade de usinas, potência instalada, média de geração etc.).  \n- Caso a informação já exista em `documents`, utilize-a diretamente e apresente a resposta ao usuário em linguagem natural, sem criar query SQL.  \n- **Nunca utilize funções de agregação como COUNT, SUM, AVG, DISTINCT ou similares se a informação já estiver disponível em `documents`.**\n- Somente se a informação **não estiver em `documents`**, passe para a etapa de geração de SQL.\n\nGeração de SQL\n\n- Somente se a informação não estiver disponível em `documents`, gere queries SQL claras e corretas, compatíveis com PostgreSQL.  \n- Caso necessário, utilize JOINs entre tabelas.  \n- Sempre inclua os filtros relevantes identificados anteriormente.  \n- Importante: funções como COUNT, SUM, AVG, DISTINCT só podem ser usadas se não existir tag correspondente em `documents`.\n\n-Inclua filtros relevantes identificados no passo 3.\n\n**Restrição de Colunas:** O agente deve utilizar **SOMENTE** colunas que estejam comprovadamente mapeadas nos dicionários (`documents`) e na tabela `consulta_tabelas`. É proibido inventar ou presumir a existência de colunas (como 'nom_conjunto') em tabelas onde elas não existem (como 'geracao_por_usina'). Se for necessário filtrar por 'nom_conjunto', o agente **deve** usar consultar os dicionários em `documents`e ver onde elas se aplicam.\n\n**Regra para Data e Hora (DateTime):**\n- Se a consulta exigir data e hora (ex: '01/08/2025 as 15h') e a coluna de tempo for do tipo TIMESTAMP/DATETIME, priorize o filtro unificado no formato 'YYYY-MM-DD HH:MM:SS'. Exemplo: `din_instante = '2025-08-01 15:00:00'`.\n- Evite o uso de `EXTRACT(HOUR ...)` se a coluna for do tipo DATE (apenas data).\n\n**Regra de Prioridade para Ambiguidade de `nom_usina` (Geração/Produção):**\n- Quando a pergunta do usuário solicitar dados de **Geração** ou **Produção** e o nome fornecido puder ser ambíguo (Usina Individual ou Complexo/Conjunto):\n    1.  **Tentativa 1 (Prioritária - Usina Individual):** O agente deve **PRIMEIRO** tentar filtrar o nome diretamente na coluna **`nom_usina`** (assumindo que seja o nome da unidade individual).\n    2.  **Tentativa 2 (Fallback - Nome do Conjunto na coluna Usina):** Se a busca pela **Usina Individual** falhar ou a intenção for claramente o complexo, o agente deve tentar buscar o mesmo nome na coluna **`nom_usina`**, mas agora interpretando-o como o nome do **Complexo/Conjunto** (dada a inconsistência da base).\n- Primeiro tente fazer a query mais simples, sem utilizar JOIN ou agregações. Depois utilize caso precise.\n\n**Regra de Agregação**\n\n- **Para Instante Único (Dia e Hora):** Utilizar apenas o filtro de coluna de dia e hora correspondente. Não use `SUM` ou `AVG`.\n- **Para Períodos (Dia, Mês, Ano):** A agregação é **obrigatória**.\n    - Utilize **`SUM()`** para calcular o valor **total** de geração no período.\n    - Utilize **`AVG()`** para calcular o valor **médio** por ponto de registro (por exemplo, a média horária no dia).\n    - As funções `SUM()` ou `AVG()` devem ser escolhidas com base na unidade de medida (kW, MW, MWh) descrita nos dicionários (`documents`) e na intenção da pergunta.\n\n**Pontos de atenção na geração de SQL**\n\n- Pontos de atenção na busca de valores textuais entre tabelas:\n\n1. Antes de aplicar qualquer filtro, **inspecione exemplos reais da tabela** para entender a formatação:\n   - Pegue alguns valores da coluna que será usada como filtro (ex.: `nom_usina` ou `nom_conjunto`) e observe maiúsculas, minúsculas e acentuação.\n   - Identifique padrões de prefixos (ex.: \"EOL\", \"UFV\") ou sufixos que possam existir.\n\n2. Sempre que possível, **use dados existentes na tabela** (`documents` ou exemplos) para guiar a forma da query, ao invés de assumir que `valor_do_usuario` está na mesma formatação que no banco.\n\n3. Exemplo prático de avaliação de formato:\n   - Usuário fornece: \"Jaíba\"\n   - Inspecionar valores reais na coluna `nome_usina`: [\"JAIBA\", \"JAÍBA\", \"jaíba\", \"jaiba\"]\n   - Escolher o valor que exista na tabela antes de construir qualquer filtro ou query.\n\n- Para campos de chave exata, como `ceg`, faça correspondência direta usando `=`.  \n- Se a consulta não retornar nenhum resultado, **não tente adivinhar ou gerar variações**.  \n- Em vez disso, responda ao usuário perguntando se ele digitou a formatação correta.  \n  - Exemplo de mensagem:  \n    \"Não encontrei nenhum registro para o CEG fornecido. Por favor, verifique se o valor está na formatação correta, por exemplo: EOL.CV.RN.000000-0.00\"\n- Nunca tente normalizar ou usar fuzzy match para chaves exatas.\n\n**Para Geração de Gráficos:**\n\n- **Avaliação por Período:** A escolha do tipo de gráfico depende do período solicitado:\n    - **Visualização Contínua (Série Temporal):** Para pedidos que envolvam múltiplos dias, semanas ou um mês, utilize **Gráfico de Linhas (Line Chart)**. Este é o ideal para mostrar a tendência, a variação e os picos de geração ao longo do tempo.\n    - **Visualização Discreta (Soma Diária):** Se a consulta envolver a soma ou média de produção para cada dia de um período (o que é comum para visualizações mensais), utilize o **Gráfico de Barras (Bar Chart)**.\n    - **Visualização Pontual/Horária:** Para um único dia ou menos, o **Gráfico de Barras** simples (como o que funcionou) é o mais recomendado.\n\nRestrições e respostas\n\nSó utilize dados encontrados no banco.\n\nSe alguma informação não estiver disponível, responda:\n\n\"Desculpe, não possuo essa informação no banco de dados atual.\"\n\nApresentação da resposta\n\nSempre apresente:\n\nExplicação em linguagem natural (resposta para o usuário).\n\nReúna e entregue todas as informações disponíveis relacionadas à pergunta.\n\n**Gráficos:**\n- **Se a pergunta permitir, utilize gráficos.**\n\nImportante: nunca invente colunas, tabelas ou dados que não existam em `consulta_tabelas` ou `documents`.\nImportante: Antes fazer qualquer query com soma, média ou count, procure na tabela `documents` se já possui essa tag com a informação."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [
+        624,
+        -16
+      ],
+      "id": "42084ed4-56fb-4727-9a63-ee4d2a6aabf9",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4.1-mini"
+        },
+        "options": {
+          "temperature": 0.2
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        400,
+        192
+      ],
+      "id": "43614d97-42ec-4774-94b4-a6d360ff7360",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "VUPjJRZoSwWrjCNT",
+          "name": "nicolas-API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chunkSize": 2000
+      },
+      "type": "@n8n/n8n-nodes-langchain.textSplitterTokenSplitter",
+      "typeVersion": 1,
+      "position": [
+        0,
+        1536
+      ],
+      "id": "9064cd5c-c80f-4113-b2c3-fddb01836c39",
+      "name": "Token Splitter"
+    },
+    {
+      "parameters": {
+        "content": "### 📚 Carregando Dicionários no Supabase",
+        "height": 640,
+        "width": 768,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -480,
+        1056
+      ],
+      "typeVersion": 1,
+      "id": "c196ed56-757d-460d-8f91-e27217f5380d",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "formTitle": "Upload Dicionário ONS",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Upload o(s) documento(s)",
+              "fieldType": "file",
+              "acceptFileTypes": ".pdf, .csv",
+              "requiredField": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.2,
+      "position": [
+        -400,
+        1120
+      ],
+      "id": "79131cd0-f2f5-4ae4-ac43-1cac3edcfb11",
+      "name": "On form submission1",
+      "webhookId": "419b23c9-1392-4a68-b508-e4bdfa84680a"
+    },
+    {
+      "parameters": {
+        "mode": "insert",
+        "tableName": {
+          "__rl": true,
+          "value": "documents",
+          "mode": "list",
+          "cachedResultName": "documents"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreSupabase",
+      "typeVersion": 1.3,
+      "position": [
+        -176,
+        1136
+      ],
+      "id": "c0da1e14-ff6b-4de6-9589-965c579826a7",
+      "name": "Supabase Vector Store2",
+      "credentials": {
+        "supabaseApi": {
+          "id": "bPvMht8Ew9XYvBiw",
+          "name": "Supabase_DatathONS"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        -272,
+        1376
+      ],
+      "id": "7d68ffad-0a88-49ca-b020-89c62ad70ef7",
+      "name": "Embeddings OpenAI2",
+      "credentials": {
+        "openAiApi": {
+          "id": "ZrHE62UHTiQL1Hfc",
+          "name": "API_DatathONS"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "dataType": "binary",
+        "textSplittingMode": "custom",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.documentDefaultDataLoader",
+      "typeVersion": 1.1,
+      "position": [
+        -96,
+        1328
+      ],
+      "id": "b803c380-9115-42e7-85ca-2b1e26e1552a",
+      "name": "Default Data Loader1"
+    },
+    {
+      "parameters": {
+        "content": "### 1. Consulta \n### Dicionário de Dados",
+        "height": 400,
+        "width": 336
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        464,
+        256
+      ],
+      "typeVersion": 1,
+      "id": "2aea8003-7dba-45ae-a2fb-471150271181",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "content": "### 2. Consulta tabelas\n### Tabela que relaciona\n### Dados com dicionário",
+        "height": 240,
+        "width": 320
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        80,
+        400
+      ],
+      "typeVersion": 1,
+      "id": "7bf36950-f4ed-441d-8727-ab90b3e72c3b",
+      "name": "Sticky Note2"
+    },
+    {
+      "parameters": {
+        "content": "### 3. Agente cria query baseada na pergunta consultar dados e responder pergunta",
+        "height": 304,
+        "width": 256
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        832,
+        160
+      ],
+      "typeVersion": 1,
+      "id": "38100063-e51c-4108-972e-9fd3618ae8b2",
+      "name": "Sticky Note3"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Pega a resposta do AI Agent\nconst agentResponse = $input.first().json;\n\n// Pega dados do Merge Cache Data para preservar sessão\nconst mergeData = $('Merge Cache Data').first().json;\n\n// Inicializa resposta limpa\nlet text = \"\";\nlet visualization = null;\nlet tables = [];\nlet columns = [];\nlet sql_query = \"\";\n\n// Extrai o texto principal do Agent\nlet rawOutput = agentResponse.output || agentResponse.text || agentResponse.answer || \"\";\n\nconsole.log('===== DEBUG RAW OUTPUT =====');\nconsole.log('Raw Output:', rawOutput);\nconsole.log('============================');\n\n// Remove prefixo \"json\" ou \"```json\" se existir\nrawOutput = rawOutput\n  .replace(/^```json\\s*/i, '')  // Remove ```json no início\n  .replace(/^json\\s*/i, '')      // Remove json no início\n  .replace(/```\\s*$/i, '')       // Remove ``` no final\n  .trim();\n\nconsole.log('===== DEPOIS DE LIMPAR =====');\nconsole.log('Cleaned Output:', rawOutput);\nconsole.log('============================');\n\n// Tenta parsear se for JSON\nlet parsedData = null;\nif (rawOutput.startsWith('{')) {\n  try {\n    parsedData = JSON.parse(rawOutput);\n    console.log('✅ JSON parseado com sucesso');\n  } catch (e) {\n    console.error('❌ Erro ao parsear JSON:', e.message);\n    console.log('Output que falhou:', rawOutput.substring(0, 200));\n  }\n}\n\n// Se parseou com sucesso, extrai os campos\nif (parsedData && parsedData.text) {\n  text = parsedData.text;\n  tables = parsedData.tables || [];\n  columns = parsedData.columns || [];\n  sql_query = parsedData.sql_query || \"\";\n  visualization = parsedData.visualization || null;\n  \n  console.log('✅ Dados extraídos do JSON parseado');\n  console.log('- Text length:', text.length);\n  console.log('- Tables:', tables);\n  console.log('- Columns:', columns);\n  console.log('- SQL Query:', sql_query ? 'Presente' : 'Ausente');\n  console.log('- Visualization:', visualization ? 'Presente' : 'Ausente');\n} else {\n  // Não conseguiu parsear, usa como texto\n  text = rawOutput || \"Desculpe, não consegui processar sua solicitação.\";\n  console.log('⚠️ Usando raw output como texto');\n}\n\n// Valida visualization\nif (typeof visualization === 'string' && visualization.trim() !== '') {\n  try {\n    visualization = JSON.parse(visualization);\n    console.log('✅ Visualization parseada de string');\n  } catch (e) {\n    console.error('❌ Erro ao parsear visualization:', e.message);\n    visualization = null;\n  }\n}\n\n// VALIDAÇÃO CRÍTICA: Se tem SQL e visualization, mas labels vazio\nif (sql_query && visualization && (!visualization.labels || visualization.labels.length === 0)) {\n  console.error('⚠️ AVISO: SQL foi gerada mas visualization não tem dados!');\n  text += \"\\n\\n⚠️ A consulta SQL foi gerada mas não retornou dados para o gráfico. Verifique se a query está correta e se há dados disponíveis para o período solicitado.\";\n}\n\n// Monta histórico atualizado\nconst updatedHistory = [...(mergeData._conversationHistory || [])];\n\n// Adiciona mensagem do usuário (original, sem contexto)\nif (mergeData._originalMessage) {\n  updatedHistory.push({\n    role: \"user\",\n    content: mergeData._originalMessage\n  });\n}\n\n// Adiciona resposta do assistente\nupdatedHistory.push({\n  role: \"assistant\",\n  content: text\n});\n\n// Limita histórico a 20 mensagens (10 pares)\nif (updatedHistory.length > 20) {\n  updatedHistory.splice(0, updatedHistory.length - 20);\n}\n\n// Atualiza contexto\nconst updatedContext = { ...(mergeData._contextData || {}) };\nif (sql_query) {\n  updatedContext.lastQuery = sql_query;\n  updatedContext.lastQueryTime = new Date().toISOString();\n}\nif (tables.length > 0) {\n  updatedContext.lastTables = tables;\n}\nif (columns.length > 0) {\n  updatedContext.lastColumns = columns;\n}\n\nconsole.log('===== DADOS FINAIS =====');\nconsole.log('Text:', text.substring(0, 100) + '...');\nconsole.log('Tables:', tables);\nconsole.log('Columns:', columns);\nconsole.log('SQL:', sql_query ? 'Sim' : 'Não');\nconsole.log('Visualization labels:', visualization?.labels?.length || 0);\nconsole.log('Visualization values:', visualization?.values?.length || 0);\nconsole.log('========================');\n\n// Retorna dados estruturados\nreturn [{\n  json: {\n    // Resposta principal\n    text: text,\n    tables: tables,\n    columns: columns,\n    sql_query: sql_query,\n    visualization: visualization,\n    \n    // Dados da sessão (para Redis)\n    sessionId: mergeData.sessionId || \"default\",\n    userId: mergeData.userId || \"anonymous\",\n    \n    // Histórico e contexto atualizados\n    conversationHistory: updatedHistory,\n    contextData: updatedContext,\n    \n    // Timestamp\n    timestamp: new Date().toISOString(),\n    \n    // Debug\n    _debug: {\n      hadVisualization: !!visualization,\n      hadSQL: !!sql_query,\n      labelsCount: visualization?.labels?.length || 0,\n      valuesCount: visualization?.values?.length || 0,\n      rawOutputLength: rawOutput.length,\n      wasParsed: !!parsedData\n    }\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        896,
+        0
+      ],
+      "id": "31d59d98-343b-4e1f-aa6f-8e74f2285669",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "af615c3e-1131-492d-8c03-b5f4a01cb0c6",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -432,
+        -32
+      ],
+      "id": "a25ba35f-5e8d-4796-a5d5-c57bcc2d23e3",
+      "name": "Webhook1",
+      "webhookId": "af615c3e-1131-492d-8c03-b5f4a01cb0c6"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Acessa o primeiro item de forma mais segura.\n// Usamos $json porque ele já é um atalho para o primeiro item (se o modo for 'Run Once for All Items').\nconst inputData = $input.first().json; \nconst body = inputData.body || inputData; // Tenta pegar de 'body' ou usa a raiz do JSON\n\nconst chatInput = body.chatInput || body.message || '';\nconst sessionId = body.sessionId || 'default';\nconst userId = body.userId || 'anonymous';\nconst metadata = body.metadata || {};\n\n// Garante que sessionId e userId não estejam vazios\nif (!sessionId || !userId) {\n  console.error('sessionId ou userId estão vazios ou indefinidos:', { sessionId, userId });\n  throw new Error('sessionId e userId são obrigatórios');\n}\n\nconst timestamp = new Date().toISOString();\n\n// Retorna o item processado (apenas 1)\nreturn [{\n  json: {\n    chatInput: chatInput,\n    sessionId,\n    userId,\n    timestamp,\n    metadata,\n    shouldCheckCache: true\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -128,
+        -32
+      ],
+      "id": "7d23378e-74b9-424d-b2c6-fe5473270bfc",
+      "name": "Preparar  data"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "propertyName": "cachedHistory",
+        "key": "=",
+        "options": {}
+      },
+      "id": "ba98be34-c4f8-4eeb-9164-9453b8c648a3",
+      "name": "Redis - Get History",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        112,
+        48
+      ],
+      "credentials": {
+        "redis": {
+          "id": "izRUNdEceSYwPxhg",
+          "name": "Redis account"
+        }
+      },
+      "disabled": true,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Pega os dados do Preparar data\nconst requestData = $('Preparar  data').first().json;\n\n// Tenta pegar os resultados do Redis (se estiverem habilitados)\nlet conversationHistory = [];\nlet contextData = {};\n\ntry {\n  const historyNode = $('Redis - Get History').first();\n  if (historyNode?.json?.cachedHistory) {\n    const parsed = JSON.parse(historyNode.json.cachedHistory);\n    conversationHistory = Array.isArray(parsed) ? parsed : [];\n  }\n} catch (e) {\n  // Redis desabilitado ou erro - continua sem histórico\n  console.log('Histórico não carregado:', e.message);\n}\n\ntry {\n  const contextNode = $('Redis - Get Context').first();\n  if (contextNode?.json?.cachedContext) {\n    const parsed = JSON.parse(contextNode.json.cachedContext);\n    contextData = (typeof parsed === 'object' && parsed !== null) ? parsed : {};\n  }\n} catch (e) {\n  // Redis desabilitado ou erro - continua sem contexto\n  console.log('Contexto não carregado:', e.message);\n}\n\n// Monta a mensagem atual para o AI Agent\nconst currentMessage = requestData.chatInput || requestData.message || \"\";\n\n// Valida mensagem\nif (!currentMessage || currentMessage.trim() === \"\") {\n  throw new Error(\"Mensagem do usuário está vazia. chatInput: \" + JSON.stringify(requestData));\n}\n\n// IMPORTANTE: Incluir instruções explícitas na mensagem para forçar uso das ferramentas\nlet fullMessage = currentMessage;\n\n// Se há contexto de consultas anteriores, adiciona à mensagem\nif (contextData.lastTables && contextData.lastTables.length > 0) {\n  fullMessage += `\\n\\n[CONTEXTO: Consulta anterior usou as tabelas: ${contextData.lastTables.join(', ')}]`;\n}\n\n// Adiciona histórico resumido se existir (últimas 2 mensagens)\nif (conversationHistory.length > 0) {\n  const recentHistory = conversationHistory.slice(-4); // últimas 2 interações (4 mensagens)\n  const historyText = recentHistory\n    .map(msg => `${msg.role === 'user' ? 'Usuário' : 'Assistente'}: ${msg.content}`)\n    .join('\\n');\n  fullMessage += `\\n\\n[HISTÓRICO RECENTE:\\n${historyText}]`;\n}\n\n// Retorna dados estruturados para o AI Agent\nreturn [{\n  json: {\n    // Campo principal que o AI Agent vai ler\n    message: fullMessage,\n    \n    // Metadados da sessão\n    sessionId: requestData.sessionId || \"default\",\n    userId: requestData.userId || \"anonymous\",\n    timestamp: requestData.timestamp || new Date().toISOString(),\n    \n    // Dados para salvar depois no Redis\n    _conversationHistory: conversationHistory,\n    _contextData: contextData,\n    _originalMessage: currentMessage,\n    \n    // Debug\n    _debug: {\n      hasHistory: conversationHistory.length > 0,\n      hasContext: Object.keys(contextData).length > 0,\n      messageLength: fullMessage.length\n    }\n  }\n}];"
+      },
+      "id": "f52740e3-4857-4e8d-a544-c47fe16d8097",
+      "name": "Merge Cache Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        320,
+        -32
+      ],
+      "retryOnFail": true
+    },
+    {
+      "parameters": {},
+      "type": "@n8n/n8n-nodes-langchain.memoryRedisChat",
+      "typeVersion": 1.5,
+      "position": [
+        608,
+        160
+      ],
+      "id": "d0cc6d20-46eb-407f-9846-e0c072f69ccb",
+      "name": "Redis Chat Memory",
+      "credentials": {
+        "redis": {
+          "id": "izRUNdEceSYwPxhg",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{JSON.stringify($json)}}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        1936,
+        -48
+      ],
+      "id": "d525721d-c170-4305-8c5f-14e822c8368c",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Pega os dados do node anterior\nconst data = $input.first().json;\n\n// Parse do visualization se necessário\nlet viz = null;\nif (data.visualization) {\n  if (typeof data.visualization === 'string') {\n    try {\n      viz = JSON.parse(data.visualization);\n    } catch (e) {\n      viz = null;\n    }\n  } else if (typeof data.visualization === 'object') {\n    viz = data.visualization;\n  }\n}\n\n// Retorna apenas os campos relevantes para o frontend\nreturn [{\n  json: {\n    text: data.text || \"\",\n    tables: data.tables || [],\n    columns: data.columns || [],\n    sql_query: data.sql_query || \"\",\n    visualization: viz\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1456,
+        -32
+      ],
+      "id": "256a3781-915b-4c08-92c1-d1a7131063a3",
+      "name": "Code in JavaScript1"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "propertyName": "cachedContext",
+        "key": "return {   key: `sessao-${$json.sessionId}:context`, };",
+        "options": {}
+      },
+      "id": "f52b75c0-77ec-49ec-88b0-762d3ad83d12",
+      "name": "Redis - Get Context",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        112,
+        160
+      ],
+      "retryOnFail": false,
+      "executeOnce": false,
+      "alwaysOutputData": false,
+      "credentials": {
+        "redis": {
+          "id": "izRUNdEceSYwPxhg",
+          "name": "Redis account"
+        }
+      },
+      "disabled": true,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\n\n// Garante que temos um JSON válido\nconst response = {\n  text: input.text || \"\",\n  tables: input.tables || [],\n  columns: input.columns || [],\n  sql_query: input.sql_query || \"\",\n  visualization: input.visualization || null\n};\n\n// Retorna como string JSON\nreturn [{\n  json: {\n    responseString: JSON.stringify(response)\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1648,
+        80
+      ],
+      "id": "be11ee59-a1ef-4d1c-b7ef-8bac000cc7fd",
+      "name": "enviar para api",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "operation": "set",
+        "key": "={{$json.sessionId}}:context",
+        "value": "=={{ JSON.stringify($json.contextData) }}",
+        "expire": true,
+        "ttl": 86400
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        1136,
+        -96
+      ],
+      "id": "9756a63d-41f7-4503-9fef-1ae26bfc1fa1",
+      "name": "Redis - Set Context1",
+      "credentials": {
+        "redis": {
+          "id": "izRUNdEceSYwPxhg",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "set",
+        "key": "={{$json.sessionId}}:history",
+        "value": "=={{ JSON.stringify($json.conversationHistory) }}",
+        "expire": true,
+        "ttl": 86400
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        1152,
+        64
+      ],
+      "id": "a3e75aeb-7bbe-4af4-ba93-65f36fc0df79",
+      "name": "Redis - Set History1",
+      "credentials": {
+        "redis": {
+          "id": "izRUNdEceSYwPxhg",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "retrieve-as-tool",
+        "toolDescription": "Use isto para ter as informações de qual dataset é mais indicado para responder à pergunta do usuário.",
+        "tableName": {
+          "__rl": true,
+          "value": "documents",
+          "mode": "list",
+          "cachedResultName": "documents"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreSupabase",
+      "typeVersion": 1.3,
+      "position": [
+        768,
+        256
+      ],
+      "id": "5a538d38-1fe1-45e7-9b70-b09427f98c90",
+      "name": "Supabase Vector Store",
+      "credentials": {
+        "supabaseApi": {
+          "id": "bPvMht8Ew9XYvBiw",
+          "name": "Supabase_DatathONS"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        896,
+        448
+      ],
+      "id": "5793f5d1-07f1-42b8-baff-a1ed7865371a",
+      "name": "Embeddings OpenAI",
+      "credentials": {
+        "openAiApi": {
+          "id": "VUPjJRZoSwWrjCNT",
+          "name": "nicolas-API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "{{ $fromAI('sql_query') }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgresTool",
+      "typeVersion": 2.6,
+      "position": [
+        1184,
+        368
+      ],
+      "id": "0d089506-b52b-4feb-9f7a-973f037b72e7",
+      "name": "Execute a SQL query in Postgres",
+      "credentials": {
+        "postgres": {
+          "id": "jo10MrnSzopIO5e8",
+          "name": "Postgres_DatathONS"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "description": "IMPORTANTE: Execute esta ferramenta PRIMEIRO antes de gerar qualquer SQL query.\n\nEsta ferramenta retorna a lista COMPLETA de todas as tabelas disponíveis no banco de dados, incluindo os nomes EXATOS de todas as colunas de cada tabela.\n\nVocê DEVE usar as informações retornadas por esta ferramenta para:\n1. Identificar qual tabela usar para responder a pergunta do usuário\n2. Saber os nomes EXATOS das colunas (nunca invente nomes de colunas)\n3. Construir queries SQL corretas usando esses nomes exatos\n\nA ferramenta NÃO precisa de parâmetros de entrada - ela sempre retorna todas as tabelas e colunas disponíveis.",
+        "workflowId": {
+          "__rl": true,
+          "value": "W06BV7Ei7PM3q0ej",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/W06BV7Ei7PM3q0ej",
+          "cachedResultName": "subworkflow_Teste"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        640,
+        352
+      ],
+      "id": "8b276dab-b455-4241-9898-a02f945c9315",
+      "name": "Call 'subworkflow_Teste'"
+    }
+  ],
+  "pinData": {
+    "Webhook1": [
+      {
+        "json": {
+          "headers": {
+            "host": "lobatofranca.app.n8n.cloud",
+            "user-agent": "python-requests/2.32.5",
+            "content-length": "90",
+            "accept": "application/json",
+            "accept-encoding": "gzip, br",
+            "cdn-loop": "cloudflare; loops=1; subreqs=1",
+            "cf-connecting-ip": "45.238.139.187",
+            "cf-ew-via": "15",
+            "cf-ipcountry": "BR",
+            "cf-ray": "9870a4ea5311635c-GRU",
+            "cf-visitor": "{\"scheme\":\"https\"}",
+            "cf-worker": "n8n.cloud",
+            "content-type": "application/json",
+            "x-forwarded-for": "45.238.139.187, 172.71.239.130",
+            "x-forwarded-host": "lobatofranca.app.n8n.cloud",
+            "x-forwarded-port": "443",
+            "x-forwarded-proto": "https",
+            "x-forwarded-server": "traefik-prod-users-gwc-6-58b64db885-xzzlx",
+            "x-is-trusted": "yes",
+            "x-real-ip": "45.238.139.187"
+          },
+          "params": {},
+          "query": {},
+          "body": {
+            "chatInput": "\"quais são as usinas do Conj. Futura\"",
+            "sessionId": "default"
+          },
+          "webhookUrl": "https://lobatofranca.app.n8n.cloud/webhook/af615c3e-1131-492d-8c03-b5f4a01cb0c6",
+          "executionMode": "production"
+        }
+      }
+    ]
+  },
+  "connections": {
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Token Splitter": {
+      "ai_textSplitter": [
+        [
+          {
+            "node": "Default Data Loader1",
+            "type": "ai_textSplitter",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "On form submission1": {
+      "main": [
+        [
+          {
+            "node": "Supabase Vector Store2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings OpenAI2": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Supabase Vector Store2",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Default Data Loader1": {
+      "ai_document": [
+        [
+          {
+            "node": "Supabase Vector Store2",
+            "type": "ai_document",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Redis - Set History1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Redis - Set Context1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook1": {
+      "main": [
+        [
+          {
+            "node": "Preparar  data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar  data": {
+      "main": [
+        [
+          {
+            "node": "Redis - Get History",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Redis - Get Context",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge Cache Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Cache Data": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redis - Get History": {
+      "main": [
+        [
+          {
+            "node": "Merge Cache Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redis Chat Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript1": {
+      "main": [
+        [
+          {
+            "node": "enviar para api",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redis - Get Context": {
+      "main": [
+        [
+          {
+            "node": "Merge Cache Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "enviar para api": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redis - Set Context1": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redis - Set History1": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase Vector Store": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings OpenAI": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Supabase Vector Store",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute a SQL query in Postgres": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'subworkflow_Teste'": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "15651bfd-9c17-4997-90b2-195de41ce301",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "c41a1a3c9ef6078f92aeb4d274a5d7dc119b59dc60953e96a1bf97279426206e"
+  },
+  "id": "CNIYkSQ9XU3mq4w7",
+  "tags": []
+}
